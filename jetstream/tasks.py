@@ -38,11 +38,16 @@ def create_reports():
     all_reports = []
 
     end_date = timezone.now()
-    last_report_date = TASAllocationReport.objects.order_by('end_date').last().end_date
+    last_report_date = TASAllocationReport.objects.order_by('end_date')
+
+    if not last_report_date:
+        last_report_date=end_date
+    else:
+        last_report_date=last_report_date.last().end_date
+
     for item in user_allocation_list:
         allocation_name = item.allocation_source.name
-        #CHANGED LINE
-        project_report = _create_report_for(item.user,allocation_name,end_date)
+        project_report = _create_reports_for(item.user,allocation_name,end_date)
         if project_report:
             all_reports.append(project_report)
 
@@ -50,18 +55,18 @@ def create_reports():
 
     #filter user_allocation_source_removed events which are created after the last report date
 
-    for event in EventTable.objects.filter(name="user_allocation_source_removed", timestamp__gte=last_report_date):
+    for event in EventTable.objects.filter(name="user_allocation_source_deleted", timestamp__gte=last_report_date):
 
-        user = AtmosphereUser.objects.get(username=event.payload['username'])
+        user = AtmosphereUser.objects.get(username=event.entity_id)
         allocation_name = event.payload['allocation_source_name']
         end_date = event.timestamp
-        project_report = _create_report_for(user, allocation_name, end_date)
+        project_report = _create_reports_for(user, allocation_name, end_date)
         if project_report:
             all_reports.append(project_report)
     return all_reports
 
 
-def _create_report_for(user,allocation_name,end_date):
+def _create_reports_for(user,allocation_name,end_date):
     driver = TASAPIDriver()
     tacc_username = driver.get_tacc_username(user)
     if not tacc_username:
